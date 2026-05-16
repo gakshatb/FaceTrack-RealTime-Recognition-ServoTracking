@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Alert Logs — FaceTrack{% endblock %}
+
+{% block head %}
+<style>
+  .alert-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 2rem;
+  }
+
+  .alert-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 100px 140px 90px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+
+  .alert-row:hover { background: var(--bg-hover); }
+
+  .alert-row:last-child { border-bottom: none; }
+
+  .alert-header {
+    display: grid;
+    grid-template-columns: 120px 1fr 100px 140px 90px;
+    gap: 12px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-lo);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: var(--bg-deep);
+  }
+
+  .alert-list {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .alert-msg {
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+
+  .alert-msg .hi { color: var(--text-hi); }
+
+  .resolve-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--border-hi);
+    color: var(--text-mid);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .resolve-btn:hover {
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-lo);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1>Alert Logs</h1>
+    <div class="sub">UNRESOLVED SYSTEM ALERTS / FLAGGED EVENTS</div>
+  </div>
+  <a href="/camera" class="btn btn-accent">◈ Live Camera</a>
+</div>
+
+<!-- Alert stat cards -->
+<div class="alert-stats">
+  <div class="stat-card red">
+    <div class="val">{{ counts.critical }}</div>
+    <div class="lbl">Critical</div>
+  </div>
+  <div class="stat-card amber">
+    <div class="val">{{ counts.warning }}</div>
+    <div class="lbl">Warnings</div>
+  </div>
+  <div class="stat-card">
+    <div class="val">{{ counts.info }}</div>
+    <div class="lbl">Info</div>
+  </div>
+</div>
+
+<!-- Alert table -->
+<div class="alert-list">
+  <div class="alert-header">
+    <span>Level</span>
+    <span>Message</span>
+    <span>Subject</span>
+    <span>Time</span>
+    <span>Action</span>
+  </div>
+
+  {% if alerts %}
+    {% for alert in alerts %}
+    <div class="alert-row">
+      <!-- Level badge -->
+      <div>
+        {% if alert.level == 'critical' %}
+          <span class="badge badge-red"><span class="badge-dot"></span>Critical</span>
+        {% elif alert.level == 'warning' %}
+          <span class="badge badge-amber"><span class="badge-dot"></span>Warning</span>
+        {% else %}
+          <span class="badge"><span class="badge-dot"></span>Info</span>
+        {% endif %}
+      </div>
+
+      <!-- Message -->
+      <div class="alert-msg">{{ alert.message }}</div>
+
+      <!-- Subject -->
+      <div>
+        {% if alert.user_id %}
+          <a href="/user/{{ alert.user_id }}" class="id-chip" style="text-decoration:none;">
+            {{ alert.user_id }}
+          </a>
+        {% else %}
+          <span style="color:var(--text-lo);font-family:var(--font-mono);font-size:11px;">—</span>
+        {% endif %}
+      </div>
+
+      <!-- Timestamp -->
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-mid);">
+        {{ alert.timestamp[:16].replace('T', ' ') }}
+      </div>
+
+      <!-- Resolve -->
+      <div>
+        <form method="POST" action="/alert/{{ alert.id }}/resolve" style="margin:0;">
+          <button class="resolve-btn" type="submit">✓ Resolve</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      ✓ No active alerts
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}
