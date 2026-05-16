@@ -36,7 +36,7 @@ The system uses **InsightFace (ArcFace)** for 512-dimensional face recognition, 
 
 This project replaces the earlier Raspberry Pi + HTTP architecture with a direct USB serial link to Arduino, reducing servo latency from **100–200 ms → <5 ms** and hardware cost from **₹6,600 → ₹3,200**.
 
-> 🏫 **Academic Project — Group 14**  
+> 🏫 **Academic Project — Group 13**  
 > Department of Electronics Engineering, Walchand College of Engineering, Sangli  
 > Academic Year 2025–2026
 
@@ -69,40 +69,40 @@ This project replaces the earlier Raspberry Pi + HTTP architecture with a direct
 └───────────────────────┬─────────────────────────────────┘
                         │  USB
                         ▼
-┌─────────────────────────────────────────────────────────┐
-│              Python / Flask  (Laptop)                   │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │            Camera Pipeline (3 Threads)          │   │
-│  │                                                 │   │
-│  │  Thread 1: Camera Worker    → 30 fps capture   │   │
-│  │  Thread 2: Detection Worker → ~12 fps           │   │
-│  │                               InsightFace IoU  │   │
-│  │  Thread 3: Recognition      → ArcFace cosine   │   │
-│  │                               identity cache   │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
+┌───────────────────────────────────────────────────────┐
+│              Python / Flask  (Laptop)                 │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │            Camera Pipeline (3 Threads)          │  │
+│  │                                                 │  │
+│  │  Thread 1: Camera Worker    → 30 fps capture    │  │
+│  │  Thread 2: Detection Worker → ~12 fps           │  │
+│  │                               InsightFace IoU   │  │
+│  │  Thread 3: Recognition      → ArcFace cosine    │  │
+│  │                               identity cache    │  │
+│  └─────────────────────────────────────────────────┘  │
+│                                                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐  │
 │  │  P-Controller│  │   SQLite DB  │  │ GPT-4.1-nano│  │
 │  │  Kp·err·sign │  │  Attendance  │  │ AI Assistant│  │
 │  └──────┬───────┘  └──────────────┘  └─────────────┘  │
-│         │                                               │
+│         │                                             │
 │  ┌──────▼───────┐  ┌──────────────┐  ┌─────────────┐  │
 │  │ Arduino      │  │  gTTS+pygame │  │    Flask    │  │
 │  │ Serial Bridge│  │  Speaker TTS │  │  MJPEG+REST │  │
 │  └──────┬───────┘  └──────────────┘  └─────────────┘  │
-└─────────│───────────────────────────────────────────────┘
+└─────────│─────────────────────────────────────────────┘
           │  USB Serial  115,200 baud
           │  "pan,tilt\n" / "centre\n" / "quench\n"
           ▼
 ┌─────────────────────────────────────┐
 │           Arduino Uno R3            │
 │                                     │
-│  Pin 9  (PWM Timer1) → Pan  SG90   │
-│  Pin 10 (PWM Timer1) → Tilt SG90   │
+│  Pin 9  (PWM Timer1) → Pan  SG90    │
+│  Pin 10 (PWM Timer1) → Tilt SG90    │
 │                                     │
-│  External 5V ──── Servo VCC (×2)   │
-│  Common  GND ──── Servo GND (×2)   │
+│  External 5V ──── Servo VCC (×2)    │
+│  Common  GND ──── Servo GND (×2)    │
 └─────────────────────────────────────┘
 ```
 
