@@ -1,0 +1,602 @@
+{% extends "base.html" %}
+{% block title %}Attendance — FaceTrack{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Toolbar ──────────────────────────────────────── */
+  .att-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .date-input {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-hi);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 7px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+    letter-spacing: 0.04em;
+    color-scheme: dark;
+  }
+  .date-input:focus { border-color: var(--accent); }
+
+  .filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-mid);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  /* ── Summary cards ────────────────────────────────── */
+  .att-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 2rem;
+  }
+
+  /* ── Progress bar ─────────────────────────────────── */
+  .presence-bar-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .presence-bar-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-mid);
+  }
+  .presence-bar-track {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .presence-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    transition: width 0.6s ease;
+  }
+
+  /* ── Table ────────────────────────────────────────── */
+  .att-table-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .att-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .att-table thead { background: var(--bg-deep); }
+  .att-table th {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--text-lo);
+    text-transform: uppercase;
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .att-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-mid);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  .att-table tbody tr:last-child td { border-bottom: none; }
+  .att-table tbody tr:hover td { background: var(--bg-hover); }
+
+  /* avatar */
+  .att-avatar {
+    width: 36px; height: 36px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--bg-deep);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .att-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+  .name-cell { display: flex; align-items: center; gap: 10px; }
+  .name-cell .nm { font-size: 13px; font-weight: 500; color: var(--text-hi); }
+  .name-cell .uid {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--accent-dim);
+    background: rgba(0,229,255,0.07);
+    padding: 1px 6px; border-radius: 2px;
+    display: inline-block; margin-top: 3px;
+  }
+
+  .time-chip {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-hi);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+  .time-chip.checkout { color: var(--text-mid); }
+  .time-chip.absent { color: var(--text-lo); font-style: italic; }
+
+  .conf-pill {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+  }
+  .conf-pill.high { color: var(--green); border-color: rgba(0,255,135,.25); background: rgba(0,255,135,.06); }
+  .conf-pill.mid  { color: var(--accent); border-color: rgba(0,229,255,.25); background: rgba(0,229,255,.06); }
+  .conf-pill.low  { color: var(--amber); border-color: rgba(255,179,0,.25); background: rgba(255,179,0,.06); }
+
+  .emotion-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-mid);
+    text-transform: capitalize;
+    letter-spacing: 0.04em;
+  }
+
+  .dur-bar {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-mid);
+  }
+  .dur-bar .bar {
+    height: 3px; background: var(--accent); border-radius: 2px;
+    opacity: 0.5; min-width: 3px;
+  }
+
+  /* ── Empty state ──────────────────────────────────── */
+  .empty-state {
+    padding: 4rem 2rem; text-align: center;
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--text-lo); letter-spacing: 0.08em;
+  }
+  .empty-state .ico { font-size: 32px; opacity: 0.2; margin-bottom: 12px; }
+
+  /* ── Loading spinner ──────────────────────────────── */
+  .loading-row td {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-lo);
+    padding: 3rem;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── Search ───────────────────────────────────────── */
+  .search-wrap { position: relative; flex: 1; min-width: 220px; }
+  .search-wrap .ico {
+    position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--text-lo); pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-hi);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 7px 12px 7px 32px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-input::placeholder { color: var(--text-lo); }
+  .search-input:focus { border-color: var(--accent); }
+
+  /* ── Export ───────────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 2rem; right: 2rem;
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--font-mono); font-size: 12px;
+    padding: 10px 18px; border-radius: 3px;
+    opacity: 0; transition: opacity 0.3s;
+    pointer-events: none; z-index: 999;
+  }
+  #toast.show { opacity: 1; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1>Attendance Log</h1>
+    <div class="sub">FACE-RECOGNITION CHECK-IN / CHECK-OUT RECORDS</div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn" onclick="exportCSV()">↓ Export CSV</button>
+    <a href="/live" class="btn btn-accent">▣ Live Tracking</a>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="att-toolbar">
+  <div class="search-wrap">
+    <span class="ico">⌕</span>
+    <input class="search-input" type="text" id="searchInput"
+           placeholder="Search by name or ID…" oninput="filterTable()" />
+  </div>
+
+  <label style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);display:flex;align-items:center;gap:8px;">
+    DATE
+    <input type="date" class="date-input" id="dateInput" />
+  </label>
+
+  <button class="filter-btn active" id="filter-all"    onclick="setFilter('all')">All</button>
+  <button class="filter-btn"        id="filter-present" onclick="setFilter('present')">
+    <span style="width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;"></span>
+    Present
+  </button>
+  <button class="filter-btn"        id="filter-absent"  onclick="setFilter('absent')">
+    <span style="width:5px;height:5px;border-radius:50%;background:var(--red);display:inline-block;"></span>
+    Absent
+  </button>
+
+  <button class="btn" onclick="loadData()" style="white-space:nowrap;">↺ Refresh</button>
+</div>
+
+<!-- Summary cards -->
+<div class="att-summary">
+  <div class="stat-card">
+    <div class="val" id="stat-total">—</div>
+    <div class="lbl">Total Enrolled</div>
+  </div>
+  <div class="stat-card green">
+    <div class="val" id="stat-present">—</div>
+    <div class="lbl">Present Today</div>
+  </div>
+  <div class="stat-card red">
+    <div class="val" id="stat-absent">—</div>
+    <div class="lbl">Absent</div>
+  </div>
+  <div class="stat-card amber">
+    <div class="val" id="stat-date">—</div>
+    <div class="lbl">Date</div>
+  </div>
+</div>
+
+<!-- Presence progress bar -->
+<div class="presence-bar-wrap">
+  <div class="presence-bar-label">
+    <span>Attendance Rate</span>
+    <span id="att-pct" style="color:var(--accent);">—%</span>
+  </div>
+  <div class="presence-bar-track">
+    <div class="presence-bar-fill" id="att-bar" style="width:0%"></div>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="att-table-wrap">
+  <table class="att-table">
+    <thead>
+      <tr>
+        <th>Subject</th>
+        <th>Department</th>
+        <th>Check-In</th>
+        <th>Check-Out</th>
+        <th>Duration</th>
+        <th>Confidence</th>
+        <th>Emotion</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="attBody">
+      <tr class="loading-row">
+        <td colspan="8">LOADING RECORDS…</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="ico">◎</div>
+    <p id="emptyMsg">NO ATTENDANCE RECORDS FOR THIS DATE</p>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let allLogs    = [];
+  let allPersons = [];
+  let currentFilter = 'all';
+
+  // ── Init date to today ─────────────────────────────────────────────────────
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('dateInput').value = today;
+  document.getElementById('dateInput').addEventListener('change', loadData);
+
+  // ── Load data ──────────────────────────────────────────────────────────────
+  async function loadData() {
+    const dateVal = document.getElementById('dateInput').value || today;
+
+    // Reset UI
+    document.getElementById('attBody').innerHTML =
+      '<tr class="loading-row"><td colspan="8">LOADING RECORDS…</td></tr>';
+    document.getElementById('emptyState').style.display = 'none';
+
+    try {
+      const [todayRes, logsRes, personsRes] = await Promise.all([
+        fetch('/api/attendance/today'),
+        fetch('/api/attendance?date=' + dateVal),
+        fetch('/api/persons'),
+      ]);
+      const todayData   = await todayRes.json();
+      const logsData    = await logsRes.json();
+      const personsData = await personsRes.json();
+
+      allPersons = personsData;
+      allLogs    = logsData;
+
+      updateSummary(todayData, dateVal);
+      renderTable();
+    } catch (e) {
+      document.getElementById('attBody').innerHTML =
+        '<tr class="loading-row"><td colspan="8" style="color:var(--red);">ERROR LOADING DATA</td></tr>';
+    }
+  }
+
+  // ── Summary cards ──────────────────────────────────────────────────────────
+  function updateSummary(data, dateVal) {
+    document.getElementById('stat-total').textContent   = data.total   ?? '—';
+    document.getElementById('stat-present').textContent = data.present ?? '—';
+    document.getElementById('stat-absent').textContent  = data.absent  ?? '—';
+    document.getElementById('stat-date').textContent    = dateVal;
+
+    const pct = data.total ? Math.round((data.present / data.total) * 100) : 0;
+    document.getElementById('att-pct').textContent  = pct + '%';
+    document.getElementById('att-bar').style.width  = pct + '%';
+    // Colour the bar by rate
+    document.getElementById('att-bar').style.background =
+      pct >= 80 ? 'linear-gradient(90deg,var(--accent),var(--green))' :
+      pct >= 50 ? 'linear-gradient(90deg,var(--amber),var(--accent))'  :
+                  'linear-gradient(90deg,var(--red),var(--amber))';
+  }
+
+  // ── Render table ───────────────────────────────────────────────────────────
+  function renderTable() {
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+
+    // Build a set of person_ids that are present
+    const presentIds = new Set(allLogs.map(l => l.person_id));
+
+    // Decide what rows to show
+    let rows = [];
+
+    if (currentFilter === 'absent') {
+      // Show only enrolled persons who have NO log entry for this date
+      rows = allPersons
+        .filter(p => !presentIds.has(p.id))
+        .filter(p => !q || p.name.toLowerCase().includes(q) || p.employee_id.toLowerCase().includes(q))
+        .map(p => buildAbsentRow(p));
+    } else {
+      // Show logs (present records), optionally also absent
+      let logs = allLogs;
+      if (currentFilter === 'present') {
+        logs = allLogs.filter(l => l.is_present);
+      }
+      logs = logs.filter(l =>
+        !q ||
+        (l.person_name || '').toLowerCase().includes(q) ||
+        (l.employee_id || '').toLowerCase().includes(q)
+      );
+      rows = logs.map(l => buildPresentRow(l));
+
+      // If filter === 'all', also append absent persons
+      if (currentFilter === 'all') {
+        const absentPersons = allPersons.filter(p => !presentIds.has(p.id));
+        rows = rows.concat(
+          absentPersons
+            .filter(p => !q || p.name.toLowerCase().includes(q) || p.employee_id.toLowerCase().includes(q))
+            .map(p => buildAbsentRow(p))
+        );
+      }
+    }
+
+    const tbody = document.getElementById('attBody');
+    const empty = document.getElementById('emptyState');
+
+    if (rows.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      document.getElementById('emptyMsg').textContent =
+        currentFilter === 'absent' ? 'ALL ENROLLED PERSONS ARE PRESENT' :
+        'NO ATTENDANCE RECORDS FOR THIS DATE';
+      return;
+    }
+
+    empty.style.display = 'none';
+    tbody.innerHTML = rows.join('');
+  }
+
+  // ── Row builders ───────────────────────────────────────────────────────────
+  function buildPresentRow(l) {
+    const checkIn  = l.check_in  ? l.check_in.slice(11, 16)  : '—';
+    const checkOut = l.check_out ? l.check_out.slice(11, 16) : null;
+
+    // Duration
+    let durStr = '—';
+    let durPx  = 0;
+    if (l.check_in && l.check_out) {
+      const secs = Math.round((new Date(l.check_out) - new Date(l.check_in)) / 1000);
+      const mins = Math.floor(secs / 60);
+      durStr = mins > 0 ? mins + 'm ' + (secs % 60) + 's' : secs + 's';
+      durPx  = Math.min(secs / 3, 80);
+    }
+
+    // Confidence
+    const conf     = Math.round((l.confidence || 0) * 100);
+    const confCls  = conf >= 80 ? 'high' : conf >= 60 ? 'mid' : 'low';
+
+    return `
+      <tr data-status="present"
+          data-name="${(l.person_name||'').toLowerCase()}"
+          data-id="${(l.employee_id||'').toLowerCase()}">
+        <td>
+          <div class="name-cell">
+            <div class="att-avatar">
+              <svg width="16" height="16" viewBox="0 0 32 32" fill="none" style="opacity:.3">
+                <circle cx="16" cy="11" r="6" stroke="#00e5ff" stroke-width="1.5"/>
+                <path d="M4 28c0-6.6 5.4-12 12-12s12 5.4 12 12" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div>
+              <div class="nm">${escHtml(l.person_name || 'Unknown')}</div>
+              <a href="/user/${l.employee_id}" class="uid">${l.employee_id || '—'}</a>
+            </div>
+          </div>
+        </td>
+        <td style="font-family:var(--font-mono);font-size:11px;">${escHtml(l.department || '—')}</td>
+        <td><span class="time-chip">${checkIn}</span></td>
+        <td>${checkOut
+          ? `<span class="time-chip checkout">${checkOut}</span>`
+          : `<span class="time-chip absent">Still In</span>`}</td>
+        <td>
+          ${durStr !== '—' ? `
+          <div class="dur-bar">
+            <div class="bar" style="width:${durPx}px"></div>
+            <span>${durStr}</span>
+          </div>` : '<span style="color:var(--text-lo);font-family:var(--font-mono);font-size:11px;">—</span>'}
+        </td>
+        <td><span class="conf-pill ${confCls}">${conf}%</span></td>
+        <td><span class="emotion-tag">${l.emotion || '—'}</span></td>
+        <td><span class="badge badge-green"><span class="badge-dot"></span>Present</span></td>
+      </tr>`;
+  }
+
+  function buildAbsentRow(p) {
+    return `
+      <tr data-status="absent"
+          data-name="${(p.name||'').toLowerCase()}"
+          data-id="${(p.employee_id||'').toLowerCase()}">
+        <td>
+          <div class="name-cell">
+            <div class="att-avatar" style="opacity:.4">
+              <svg width="16" height="16" viewBox="0 0 32 32" fill="none" style="opacity:.6">
+                <circle cx="16" cy="11" r="6" stroke="#00e5ff" stroke-width="1.5"/>
+                <path d="M4 28c0-6.6 5.4-12 12-12s12 5.4 12 12" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div>
+              <div class="nm" style="color:var(--text-mid)">${escHtml(p.name)}</div>
+              <a href="/user/${p.employee_id}" class="uid">${p.employee_id}</a>
+            </div>
+          </div>
+        </td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);">${escHtml(p.department||'—')}</td>
+        <td><span class="time-chip absent">—</span></td>
+        <td><span class="time-chip absent">—</span></td>
+        <td style="color:var(--text-lo);font-family:var(--font-mono);font-size:11px;">—</td>
+        <td style="color:var(--text-lo);font-family:var(--font-mono);font-size:11px;">—</td>
+        <td style="color:var(--text-lo);font-family:var(--font-mono);font-size:11px;">—</td>
+        <td><span class="badge badge-red"><span class="badge-dot"></span>Absent</span></td>
+      </tr>`;
+  }
+
+  // ── Filter buttons ─────────────────────────────────────────────────────────
+  function setFilter(f) {
+    currentFilter = f;
+    ['all','present','absent'].forEach(k => {
+      document.getElementById('filter-' + k).classList.toggle('active', k === f);
+    });
+    renderTable();
+  }
+
+  // ── Search ─────────────────────────────────────────────────────────────────
+  function filterTable() { renderTable(); }
+
+  // ── Export CSV ─────────────────────────────────────────────────────────────
+  function exportCSV() {
+    const dateVal = document.getElementById('dateInput').value || today;
+    const headers = ['Employee ID','Name','Department','Check-In','Check-Out','Confidence','Emotion','Status'];
+    const lines   = [headers.join(',')];
+
+    const presentIds = new Set(allLogs.map(l => l.person_id));
+
+    allLogs.forEach(l => {
+      lines.push([
+        l.employee_id, `"${l.person_name}"`, `"${l.department||''}"`,
+        l.check_in ? l.check_in.slice(0,16) : '',
+        l.check_out ? l.check_out.slice(0,16) : '',
+        Math.round((l.confidence||0)*100) + '%',
+        l.emotion || '',
+        'Present'
+      ].join(','));
+    });
+    allPersons.filter(p => !presentIds.has(p.id)).forEach(p => {
+      lines.push([p.employee_id,`"${p.name}"`,`"${p.department||''}"`,
+        '','','','','Absent'].join(','));
+    });
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `attendance_${dateVal}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    showToast('✓ CSV exported');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+  loadData();
+  // Auto-refresh every 30s
+  setInterval(() => {
+    const dateVal = document.getElementById('dateInput').value;
+    if (dateVal === today) loadData();
+  }, 30000);
+</script>
+{% endblock %}

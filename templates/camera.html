@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+{% block title %}Live Camera — FaceTrack{% endblock %}
+
+{% block head %}
+<style>
+  .camera-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .feed-wrapper {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .feed-wrapper img {
+    width: 100%;
+    display: block;
+    min-height: 360px;
+    background: var(--bg-deep);
+  }
+  .feed-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: linear-gradient(180deg, rgba(7,11,15,0.85) 0%, transparent 100%);
+    pointer-events: none;
+  }
+  .feed-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .feed-controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+  }
+  .panel-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .panel-title {
+    font-family: var(--font-cond);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-hi);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .k { color: var(--text-lo); }
+  .stat-row .v { color: var(--text-hi); }
+  #status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .cam-btn-list { display: flex; flex-direction: column; gap: 6px; }
+  .cam-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-mid);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .cam-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+  .cam-btn.active {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(0,255,135,0.07);
+    cursor: default;
+  }
+  .cam-btn.switching {
+    border-color: var(--amber);
+    color: var(--amber);
+    background: rgba(255,179,0,0.07);
+    cursor: wait;
+  }
+  .cam-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .cam-label { flex: 1; }
+  .cam-active-tag { font-size: 9px; letter-spacing: 0.1em; opacity: 0.8; }
+  .alert-mini {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-mid);
+  }
+  .alert-mini:last-child { border-bottom: none; }
+  .alert-mini .dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .dot-critical { background: var(--red); }
+  .dot-warning  { background: var(--amber); }
+  .dot-info     { background: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1>Live Camera Feed</h1>
+    <div class="sub">MEDIAPIPE FACE DETECTION / REAL-TIME STREAM</div>
+  </div>
+  <div id="status-indicator">
+    <div class="live-dot"></div>
+    <span id="cam-status-text" style="color: var(--text-mid);">Checking…</span>
+  </div>
+</div>
+
+<div class="camera-layout">
+
+  <!-- Feed -->
+  <div>
+    <div class="feed-wrapper">
+      <img id="feed-img" src="" alt="Camera Feed" style="min-height:360px;background:var(--bg-deep);" />
+
+      <div id="feed-offline" style="
+        position:absolute;inset:0;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;gap:10px;
+        background:var(--bg-deep);pointer-events:none;">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" opacity="0.2">
+          <rect x="4" y="10" width="32" height="24" rx="3" stroke="#00e5ff" stroke-width="1.5"/>
+          <circle cx="20" cy="22" r="6" stroke="#00e5ff" stroke-width="1.5"/>
+          <path d="M36 14h6a2 2 0 012 2v12a2 2 0 01-2 2h-6" stroke="#00e5ff" stroke-width="1.5"/>
+        </svg>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);letter-spacing:.1em;">
+          CAMERA OFFLINE — PRESS START
+        </span>
+      </div>
+
+      <div class="feed-overlay">
+        <div class="feed-label">
+          <div class="live-dot"></div>
+          <span id="feed-cam-label">CAM-00 / MEDIAPIPE</span>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);" id="feed-ts">--:--:--</div>
+      </div>
+    </div>
+
+    <div class="feed-controls">
+      <button class="btn btn-accent" onclick="startCam()">▶ Start Camera</button>
+      <button class="btn" onclick="stopCam()">■ Stop Camera</button>
+      <button class="btn" onclick="refreshCamList()">↺ Scan Cameras</button>
+      <a href="/alerts" class="btn">⚑ View Alerts</a>
+    </div>
+  </div>
+
+  <!-- Side panel -->
+  <div>
+
+    <div class="panel-card">
+      <div class="panel-title">Camera Select</div>
+      <div class="cam-btn-list" id="cam-btn-list">
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);">
+          Start camera to detect devices…
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-title">Camera Info</div>
+      <div class="stat-row"><span class="k">SOURCE</span>    <span class="v" id="active-cam-label">—</span></div>
+      <div class="stat-row"><span class="k">RESOLUTION</span><span class="v">640 × 480</span></div>
+      <div class="stat-row"><span class="k">MODEL</span>     <span class="v">MediaPipe FD</span></div>
+      <div class="stat-row"><span class="k">CONFIDENCE</span><span class="v">≥ 80%</span></div>
+      <div class="stat-row"><span class="k">STATUS</span>
+        <span class="v" id="cam-status-badge">—</span>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-title">Recent Alerts</div>
+      <div id="alert-feed">
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);">Loading…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function tick() {
+    document.getElementById('feed-ts').textContent = new Date().toTimeString().slice(0,8);
+  }
+  setInterval(tick, 1000); tick();
+
+  async function startCam() {
+    const statusText = document.getElementById('cam-status-text');
+    statusText.textContent = 'STARTING…';
+    statusText.style.color = 'var(--amber)';
+
+    let res;
+    try {
+      res = await fetch('/camera/start', { method: 'POST' });
+    } catch(e) {
+      statusText.textContent = 'ERROR';
+      statusText.style.color = 'var(--red)';
+      return;
+    }
+    const data = await res.json();
+    if (!data.running) {
+      statusText.textContent = 'FAILED';
+      statusText.style.color = 'var(--red)';
+      console.error('[FaceTrack] Camera start failed:', data.error || 'unknown');
+      return;
+    }
+
+    // ✅ FIX: wait for camera thread to confirm it's producing frames
+    // Set src immediately — _gen_frames yields placeholder frames right
+    // away so the browser never gets an empty/stalled response.
+    document.getElementById('feed-img').src = '/video_feed?' + Date.now();
+    document.getElementById('feed-offline').style.display = 'none';
+
+    // Wait up to 6s for an actual camera frame
+    let ready = false;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 200));
+      try {
+        const d = await (await fetch('/api/camera/status')).json();
+        if (d.frame_ready) { ready = true; break; }
+      } catch(_) {}
+    }
+    if (!ready) {
+      statusText.textContent = 'NO FRAME';
+      statusText.style.color = 'var(--amber)';
+    }
+    updateStatus();
+    loadCamList();
+  }
+
+  async function stopCam() {
+    await fetch('/camera/stop', { method: 'POST' });
+    document.getElementById('feed-img').src = '';
+    document.getElementById('feed-offline').style.display = 'flex';
+    updateStatus();
+    document.getElementById('cam-btn-list').innerHTML =
+      '<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);">Camera stopped.</div>';
+  }
+
+  async function updateStatus() {
+    const r    = await fetch('/api/camera/status');
+    const data = await r.json();
+    const on   = data.running;
+    document.getElementById('cam-status-text').textContent  = on ? 'LIVE' : 'OFFLINE';
+    document.getElementById('cam-status-text').style.color  = on ? 'var(--green)' : 'var(--red)';
+    document.getElementById('cam-status-badge').textContent = on ? 'RUNNING' : 'STOPPED';
+    document.getElementById('cam-status-badge').style.color = on ? 'var(--green)' : 'var(--red)';
+  }
+
+  async function loadCamList() {
+    let data;
+    try {
+      const r = await fetch('/api/camera/list');
+      data    = await r.json();
+    } catch(e) { return; }
+
+    const cameras = data.cameras || [];
+    const el      = document.getElementById('cam-btn-list');
+
+    if (cameras.length === 0) {
+      el.innerHTML = '<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);">No cameras detected.</div>';
+      return;
+    }
+
+    if (cameras.length === 1) {
+      el.innerHTML = `
+        <button class="cam-btn active" disabled>
+          <span class="cam-dot"></span>
+          <span class="cam-label">${cameras[0].label} (dev ${cameras[0].device_id})</span>
+          <span class="cam-active-tag">● ACTIVE</span>
+        </button>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);margin-top:6px;padding:0 2px;">
+          Only one camera connected
+        </div>`;
+    } else {
+      el.innerHTML = cameras.map(cam => `
+        <button class="cam-btn ${cam.active ? 'active' : ''}"
+                id="cam-btn-${cam.index}"
+                onclick="switchCamera(${cam.index})"
+                ${cam.active ? 'disabled' : ''}>
+          <span class="cam-dot"></span>
+          <span class="cam-label">${cam.label} (dev ${cam.device_id})</span>
+          ${cam.active
+            ? '<span class="cam-active-tag">● ACTIVE</span>'
+            : '<span style="font-size:9px;opacity:0.5;letter-spacing:.06em;">click to use</span>'}
+        </button>
+      `).join('');
+    }
+
+    const active = cameras.find(c => c.active);
+    if (active) {
+      document.getElementById('active-cam-label').textContent = `${active.label} (dev ${active.device_id})`;
+      document.getElementById('feed-cam-label').textContent   = `${active.label} / MEDIAPIPE`;
+    }
+  }
+
+  async function refreshCamList() {
+    document.getElementById('cam-btn-list').innerHTML =
+      '<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);">Scanning…</div>';
+    await loadCamList();
+  }
+
+  async function switchCamera(index) {
+    const btn = document.getElementById('cam-btn-' + index);
+    if (btn) { btn.classList.add('switching'); btn.disabled = true; }
+
+    const r    = await fetch('/api/camera/switch', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ index }),
+    });
+    const data = await r.json();
+
+    if (!data.ok && data.error) {
+      if (btn) btn.classList.remove('switching');
+      alert('Camera switch failed: ' + data.error);
+      loadCamList();
+      return;
+    }
+
+    const img = document.getElementById('feed-img');
+    if (img.src) img.src = '/video_feed?' + Date.now();
+    setTimeout(loadCamList, 500);
+  }
+
+  async function loadAlerts() {
+    const r    = await fetch('/api/alerts');
+    const data = await r.json();
+    const el   = document.getElementById('alert-feed');
+    if (!data.length) {
+      el.innerHTML = '<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);">No active alerts.</div>';
+      return;
+    }
+    el.innerHTML = data.slice(0,6).map(a => `
+      <div class="alert-mini">
+        <div class="dot dot-${a.level}"></div>
+        <div>
+          <div>${a.message}</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);margin-top:2px;">
+            ${a.timestamp.slice(0,16).replace('T',' ')}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  updateStatus();
+  loadAlerts();
+  setInterval(loadAlerts, 5000);
+  setInterval(updateStatus, 3000);
+
+  (async () => {
+    const r    = await fetch('/api/camera/status');
+    const data = await r.json();
+    if (data.running) {
+      document.getElementById('feed-img').src = '/video_feed?' + Date.now();
+      document.getElementById('feed-offline').style.display = 'none';
+      loadCamList();
+    }
+  })();
+</script>
+{% endblock %}

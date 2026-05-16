@@ -1,0 +1,1131 @@
+{% extends "base.html" %}
+{% block title %}Live Tracking — FaceTrack{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Layout ─────────────────────────────────────── */
+  .live-layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  /* ── Feed ───────────────────────────────────────── */
+  .feed-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .feed-card img {
+    width: 100%;
+    display: block;
+    min-height: 360px;
+    background: var(--bg-deep);
+  }
+
+  .feed-top-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(180deg, rgba(7,11,15,0.9) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .live-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--red);
+    letter-spacing: 0.1em;
+  }
+
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  .feed-controls {
+    padding: 10px 12px;
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-panel);
+  }
+
+  /* ── Side panel ─────────────────────────────────── */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* ── Subject card states ────────────────────────── */
+  .subject-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .subject-card.known   { border-color: rgba(0,229,255,0.3); }
+  .subject-card.unknown { border-color: rgba(255,179,0,0.35); }
+  .subject-card.flagged { border-color: rgba(255,68,68,0.4); }
+  .subject-card.empty   { border-style: dashed; }
+
+  .subject-header {
+    padding: 1rem 1.25rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .subject-name {
+    font-family: var(--font-cond);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-hi);
+    line-height: 1.1;
+  }
+
+  .subject-name.unknown-name { color: var(--amber); }
+
+  .subject-id {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent-dim);
+    background: rgba(0,229,255,0.07);
+    padding: 2px 7px;
+    border-radius: 2px;
+    margin-top: 4px;
+    display: inline-block;
+  }
+
+  .subject-body {
+    padding: 1rem 1.25rem;
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 1rem;
+  }
+
+  .info-cell {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px 10px;
+  }
+
+  .info-cell .k {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--text-lo);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .info-cell .v {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-hi);
+  }
+
+  .info-cell .v.accent { color: var(--accent); }
+  .info-cell .v.amber  { color: var(--amber); }
+  .info-cell .v.green  { color: var(--green); }
+
+  /* ── Recent visits mini-log ─────────────────────── */
+  .mini-log { margin-top: 0.75rem; }
+
+  .mini-log-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--text-lo);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .mini-log-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-mid);
+  }
+
+  .mini-log-row:last-child { border-bottom: none; }
+  .mini-log-row .loc { color: var(--text-hi); }
+
+  /* ── Snapshot strip ─────────────────────────────── */
+  .snap-strip {
+    display: flex;
+    gap: 6px;
+    margin-top: 0.75rem;
+  }
+
+  .snap-thumb {
+    width: 64px; height: 64px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--bg-deep);
+    flex-shrink: 0;
+  }
+
+  .snap-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .snap-placeholder {
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Register form (shown for unknowns) ─────────── */
+  .register-banner {
+    background: rgba(255,179,0,0.07);
+    border: 1px solid rgba(255,179,0,0.25);
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+  }
+
+  .register-banner .title {
+    font-family: var(--font-cond);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 0.75rem;
+  }
+
+  .register-input {
+    width: 100%;
+    background: var(--bg-deep);
+    border: 1px solid var(--border-hi);
+    color: var(--text-hi);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 3px;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+  }
+
+  .register-input:focus { border-color: var(--amber); }
+
+  .register-submit {
+    margin-top: 8px;
+    width: 100%;
+    padding: 9px;
+    background: transparent;
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .register-submit:hover { background: rgba(255,179,0,0.12); }
+
+  /* ── Empty / no-face state ──────────────────────── */
+  .no-face-state {
+    padding: 2.5rem 1.25rem;
+    text-align: center;
+  }
+
+  .no-face-state .icon {
+    font-size: 32px;
+    opacity: 0.2;
+    margin-bottom: 0.75rem;
+  }
+
+  .no-face-state p {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-lo);
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Tracking confidence bar ────────────────────── */
+  .conf-bar-wrap {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px 10px;
+    margin-bottom: 0.75rem;
+  }
+
+  .conf-bar-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-lo);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .conf-bar-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .conf-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+    transition: width 0.3s;
+  }
+
+  /* ── Action buttons in panel ────────────────────── */
+  .panel-actions {
+    display: flex;
+    gap: 8px;
+    padding: 0 1.25rem 1rem;
+  }
+
+  /* ── Toast ──────────────────────────────────────── */
+  #toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 10px 18px;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  #toast.show { opacity: 1; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1>Live Tracking</h1>
+    <div class="sub">AUTO-TRACKING · REAL-TIME FACE IDENTIFICATION</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <span id="cam-pill" style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);">
+      CAM OFFLINE
+    </span>
+    <button class="btn" onclick="openModal()" style="color:var(--green);border-color:rgba(0,255,135,.35);">+ Enrol</button>
+    <button class="btn btn-accent" onclick="startCamera()">▶ Start Camera</button>
+    <button class="btn" onclick="stopCamera()">■ Stop</button>
+  </div>
+</div>
+
+<div class="live-layout">
+
+  <!-- ── Left: Camera feed ──────────────────────── -->
+  <div>
+    <div class="feed-card">
+      <img id="feed-img" src="" alt="Camera Feed" style="min-height:360px;background:var(--bg-deep);" />
+      <div class="feed-top-bar">
+        <div class="live-pill">
+          <div class="live-dot"></div>
+          CAM-01 / AUTO-TRACK
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);" id="feed-clock">--:--:--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: Subject panel ───────────────────── -->
+  <div class="side-panel">
+
+    <!-- Face count badge -->
+    <div id="face-count-bar" style="display:none;
+      font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;
+      color:var(--text-lo);text-transform:uppercase;
+      margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+      <span id="face-count-label">0 FACES IN FRAME</span>
+    </div>
+
+    <!-- Multi-face container — one .subject-card per detected face, built by JS -->
+    <div id="faces-container">
+      <div class="subject-card empty" id="no-face-card">
+        <div class="no-face-state">
+          <div class="icon">◎</div>
+          <p>NO FACE DETECTED</p>
+          <p style="margin-top:6px;">Start camera to begin tracking</p>
+        </div>
+      </div>
+    </div>
+
+    <!--
+      Register banners for unknown faces — one per slot (0-4).
+      Persistent DOM elements that live outside the poll-rebuilt cards
+      so <input> values survive re-renders. Shown/hidden per slot by JS.
+    -->
+    <div id="register-panels-container">
+      <!-- Slots 0-4 rendered at page load; hidden until an unknown face appears -->
+    </div>
+
+    <!-- Servo control panel -->
+    <div class="subject-card" id="servo-card">
+      <div style="padding:0.9rem 1.25rem;">
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-family:var(--font-cond);font-size:12px;font-weight:700;
+                      letter-spacing:.12em;text-transform:uppercase;color:var(--text-hi);
+                      display:flex;align-items:center;gap:8px;">
+            <span id="servo-conn-dot" style="width:7px;height:7px;border-radius:50%;
+                  background:var(--text-lo);flex-shrink:0;display:inline-block;"></span>
+            Servo Motor
+          </div>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;">
+            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);">
+              ENABLED
+            </span>
+            <div id="servo-toggle" onclick="toggleServo()"
+                 style="width:32px;height:18px;border-radius:9px;background:var(--border);
+                        position:relative;cursor:pointer;transition:background .2s;border:1px solid var(--border-hi);">
+              <div id="servo-toggle-knob"
+                   style="width:12px;height:12px;border-radius:50%;background:var(--text-lo);
+                          position:absolute;top:2px;left:2px;transition:all .2s;"></div>
+            </div>
+          </label>
+        </div>
+
+        <!-- Target & position -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+          <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:3px;padding:6px 8px;">
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-lo);letter-spacing:.1em;margin-bottom:3px;">TARGET</div>
+            <div id="servo-target-text" style="font-family:var(--font-mono);font-size:12px;color:var(--green);">—</div>
+          </div>
+          <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:3px;padding:6px 8px;">
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-lo);letter-spacing:.1em;margin-bottom:3px;">POSITION</div>
+            <div id="servo-pos-text" style="font-family:var(--font-mono);font-size:11px;color:var(--text-mid);">x:— y:—</div>
+          </div>
+        </div>
+
+        <!-- Quick tracking buttons -->
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <button class="btn" id="btn-track-auto"
+                  onclick="trackAuto()"
+                  style="flex:1;justify-content:center;font-size:10px;padding:6px 8px;">
+            ◎ Auto Track
+          </button>
+          <button class="btn" id="btn-track-stop"
+                  onclick="stopTracking()"
+                  style="flex:1;justify-content:center;font-size:10px;padding:6px 8px;
+                         color:var(--red);border-color:rgba(255,68,68,.35);">
+            ■ Stop
+          </button>
+        </div>
+
+        <!-- Expandable config -->
+        <details style="margin-top:4px;">
+          <summary style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);
+                          letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+                          list-style:none;display:flex;align-items:center;gap:6px;">
+            <span>▸</span> Pi Configuration
+          </summary>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            <div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-lo);
+                          letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;">
+                Raspberry Pi URL
+              </div>
+              <input id="servo-url-input" type="text"
+                     placeholder="http://192.168.x.x:5000/"
+                     style="width:100%;background:var(--bg-deep);border:1px solid var(--border-hi);
+                            color:var(--text-hi);font-family:var(--font-mono);font-size:11px;
+                            padding:6px 9px;border-radius:3px;outline:none;box-sizing:border-box;
+                            transition:border-color .15s;"
+                     onfocus="this.style.borderColor='var(--accent)'"
+                     onblur="this.style.borderColor='var(--border-hi)'" />
+            </div>
+            <div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-lo);
+                          letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;">
+                Password
+              </div>
+              <input id="servo-pass-input" type="number" value="5396"
+                     style="width:100%;background:var(--bg-deep);border:1px solid var(--border-hi);
+                            color:var(--text-hi);font-family:var(--font-mono);font-size:11px;
+                            padding:6px 9px;border-radius:3px;outline:none;box-sizing:border-box;" />
+            </div>
+            <button class="btn btn-accent" onclick="saveServoConfig()"
+                    style="justify-content:center;font-size:10px;">
+              ✓ Save Config
+            </button>
+            <div id="servo-config-msg" style="display:none;font-family:var(--font-mono);
+                 font-size:10px;padding:5px 8px;border-radius:3px;"></div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<!-- ── Enrol Modal ──────────────────────────────────────── -->
+<div id="enrol-modal" style="display:none;position:fixed;inset:0;background:rgba(7,11,15,.85);
+  z-index:500;display:none;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-card);border:1px solid var(--border-hi);border-radius:4px;
+    width:400px;padding:1.5rem;">
+    <div style="font-family:var(--font-cond);font-size:16px;font-weight:700;letter-spacing:.1em;
+      text-transform:uppercase;color:var(--accent);margin-bottom:1.25rem;">
+      ◉ Enrol New Person
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);
+          letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;">Full Name *</div>
+        <input id="mod-name" type="text" placeholder="Jane Doe"
+          style="width:100%;background:var(--bg-deep);border:1px solid var(--border-hi);
+          color:var(--text-hi);font-family:var(--font-mono);font-size:13px;
+          padding:8px 10px;border-radius:3px;outline:none;box-sizing:border-box;" />
+      </div>
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);
+          letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;">Employee / Student ID *</div>
+        <input id="mod-eid" type="text" placeholder="EMP-001"
+          style="width:100%;background:var(--bg-deep);border:1px solid var(--border-hi);
+          color:var(--text-hi);font-family:var(--font-mono);font-size:13px;
+          padding:8px 10px;border-radius:3px;outline:none;box-sizing:border-box;" />
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);
+            letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;">Role</div>
+          <input id="mod-role" type="text" placeholder="Employee" value="Employee"
+            style="width:100%;background:var(--bg-deep);border:1px solid var(--border-hi);
+            color:var(--text-hi);font-family:var(--font-mono);font-size:13px;
+            padding:8px 10px;border-radius:3px;outline:none;box-sizing:border-box;" />
+        </div>
+        <div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);
+            letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;">Department</div>
+          <input id="mod-dept" type="text" placeholder="General" value="General"
+            style="width:100%;background:var(--bg-deep);border:1px solid var(--border-hi);
+            color:var(--text-hi);font-family:var(--font-mono);font-size:13px;
+            padding:8px 10px;border-radius:3px;outline:none;box-sizing:border-box;" />
+        </div>
+      </div>
+    </div>
+    <div id="mod-msg" style="display:none;margin-top:10px;padding:8px 10px;border-radius:3px;
+      font-family:var(--font-mono);font-size:11px;"></div>
+    <div style="display:flex;gap:8px;margin-top:1.25rem;">
+      <button class="btn btn-accent" style="flex:1;justify-content:center;"
+        onclick="modalCapture()">📷 Capture from Camera</button>
+      <button class="btn" onclick="closeModal()">✕ Cancel</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  const MAX_SLOTS = 5;
+
+  // Per-slot register state — indexed by slot number
+  const regState = {};   // slot → { registering, locked }
+  for (let i = 0; i < MAX_SLOTS; i++) regState[i] = { registering: false, locked: false };
+
+  // Last rendered face IDs per slot — for surgical vs full rebuild
+  const lastFaceId = {};  // slot → user_id string
+
+  let pollInterval = null;
+  let camRunning   = false;
+
+  // ── Boot: build persistent register panel DOM nodes ───────────────────────
+  (function buildRegisterPanels() {
+    const container = document.getElementById('register-panels-container');
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const div = document.createElement('div');
+      div.className = 'register-banner';
+      div.id        = `reg-panel-${i}`;
+      div.style.display = 'none';
+      div.style.marginTop = '8px';
+      div.innerHTML = `
+        <div class="title">⚑ Unknown Person #${i} — Register to DB</div>
+        <input class="register-input" id="reg-name-${i}" type="text"
+               placeholder="Full name *" autocomplete="off"
+               onkeydown="if(event.key==='Enter') registerFace(${i})" />
+        <input class="register-input" id="reg-eid-${i}" type="text"
+               placeholder="Employee / Student ID (leave blank to auto-generate)"
+               autocomplete="off" style="margin-top:8px;" />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+          <input class="register-input" id="reg-dept-${i}" type="text"
+                 placeholder="Department" autocomplete="off" />
+          <input class="register-input" id="reg-role-${i}" type="text"
+                 placeholder="Role" autocomplete="off" />
+        </div>
+        <button class="register-submit" id="reg-btn-${i}" onclick="registerFace(${i})">
+          + Add to Database
+        </button>
+        <div id="reg-status-${i}" style="display:none;margin-top:8px;padding:7px 10px;
+          border-radius:3px;font-family:var(--font-mono);font-size:11px;"></div>`;
+      container.appendChild(div);
+    }
+  })();
+
+  // ── Clock ──────────────────────────────────────────────────────────────────
+  function tick() {
+    document.getElementById('feed-clock').textContent =
+      new Date().toTimeString().slice(0, 8);
+  }
+  setInterval(tick, 1000); tick();
+
+  // ── Camera controls ────────────────────────────────────────────────────────
+  async function startCamera() {
+    const pill = document.getElementById('cam-pill');
+    pill.textContent = 'STARTING…'; pill.style.color = 'var(--amber)';
+    let res;
+    try { res = await fetch('/camera/start', { method: 'POST' }); }
+    catch(e) { pill.textContent = 'ERROR'; pill.style.color = 'var(--red)'; return; }
+    const data = await res.json();
+    if (!data.running) { pill.textContent = 'FAILED'; pill.style.color = 'var(--red)'; return; }
+    // Set src immediately — _gen_frames now yields placeholder frames
+    // right away so the browser img element never stalls.
+    document.getElementById('feed-img').src = '/video_feed?' + Date.now();
+
+    // Wait up to 6s for a real camera frame (not just thread running)
+    let ready = false;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 200));
+      try {
+        const d = await (await fetch('/api/camera/status')).json();
+        if (d.frame_ready) { ready = true; break; }
+      } catch(_) {}
+    }
+    if (!ready) { pill.textContent = 'NO FRAME'; pill.style.color = 'var(--amber)'; }
+    camRunning = true;
+    pill.textContent = 'CAM LIVE'; pill.style.color = 'var(--green)';
+    startPolling();
+  }
+
+  async function stopCamera() {
+    await fetch('/camera/stop', { method: 'POST' });
+    document.getElementById('feed-img').src = '';
+    camRunning = false; stopPolling();
+    document.getElementById('cam-pill').textContent = 'CAM OFFLINE';
+    document.getElementById('cam-pill').style.color = 'var(--text-lo)';
+    renderNoFaces();
+  }
+
+  // ── Polling ────────────────────────────────────────────────────────────────
+  function startPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(fetchFaceState, 800);
+    fetchFaceState();
+  }
+  function stopPolling() {
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  }
+
+  async function fetchFaceState() {
+    // Freeze if ANY register input has focus
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const inp = document.getElementById(`reg-name-${i}`);
+      if (inp && document.activeElement === inp) return;
+      if (regState[i].registering || regState[i].locked) return;
+    }
+    try {
+      const r    = await fetch('/api/current_face');
+      const data = await r.json();
+      const faces = data.faces || [];
+      faces.length ? renderFaces(faces) : renderNoFaces();
+    } catch(e) {}
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  function renderNoFaces() {
+    for (let i = 0; i < MAX_SLOTS; i++) lastFaceId[i] = null;
+    document.getElementById('faces-container').innerHTML = `
+      <div class="subject-card empty" id="no-face-card">
+        <div class="no-face-state">
+          <div class="icon">◎</div><p>NO FACE IN FRAME</p>
+        </div>
+      </div>`;
+    // Hide all register panels
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const p = document.getElementById(`reg-panel-${i}`);
+      if (p) p.style.display = 'none';
+    }
+    const cb = document.getElementById('face-count-bar');
+    if (cb) cb.style.display = 'none';
+    // Keep servo card visible so config is accessible even with no face
+  }
+
+  function renderFaces(faces) {
+    const container = document.getElementById('faces-container');
+
+    // Update face count badge
+    const cb = document.getElementById('face-count-bar');
+    if (cb) {
+      cb.style.display = 'flex';
+      document.getElementById('face-count-label').textContent =
+        faces.length === 1 ? '1 FACE IN FRAME' : `${faces.length} FACES IN FRAME`;
+    }
+
+    // Build set of active slots
+    const activeSlots = new Set(faces.map(f => f.slot));
+
+    // Remove cards for slots that are no longer active
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      if (!activeSlots.has(i)) {
+        const old = document.getElementById(`face-card-${i}`);
+        if (old) old.remove();
+        const rp = document.getElementById(`reg-panel-${i}`);
+        if (rp) rp.style.display = 'none';
+        lastFaceId[i] = null;
+      }
+    }
+
+    // Remove the no-face placeholder if faces present
+    const noFaceCard = document.getElementById('no-face-card');
+    if (noFaceCard) noFaceCard.remove();
+
+    // Render / update each face
+    faces.forEach(f => {
+      const slot    = f.slot;
+      const sameId  = (lastFaceId[slot] === f.user_id);
+      lastFaceId[slot] = f.user_id;
+
+      let card = document.getElementById(`face-card-${slot}`);
+
+      // ── Surgical update: same person, same slot ──────────────────────────
+      if (sameId && card && card.querySelector('.conf-bar-fill')) {
+        const fill  = card.querySelector('.conf-bar-fill');
+        const confV = card.querySelector('.conf-value');
+        const emoEl = card.querySelector('.emotion-val');
+        if (fill)  { fill.style.width = f.conf + '%';
+                     fill.style.background = f.conf>80?'var(--green)':f.conf>60?'var(--accent)':'var(--amber)'; }
+        if (confV) confV.textContent = f.conf + '%';
+        if (emoEl) emoEl.textContent = f.emotion || '—';
+        _syncSlotRegisterPanel(slot, f);
+        return;
+      }
+
+      // ── Full rebuild for this slot ───────────────────────────────────────
+      const cls      = f.status==='flagged' ? 'flagged' : (f.is_known ? 'known' : 'unknown');
+      const badgeCls = f.status==='flagged' ? 'badge-red' : (f.is_known ? 'badge-green' : 'badge-amber');
+      const badgeTxt = f.status==='flagged' ? 'Flagged'  : (f.is_known ? 'Known' : 'Unknown');
+      const primaryTag = f.primary
+        ? '<span style="font-family:var(--font-mono);font-size:9px;color:var(--accent);background:rgba(0,229,255,.08);padding:2px 6px;border-radius:2px;margin-left:6px;">PRIMARY</span>'
+        : `<span style="font-family:var(--font-mono);font-size:9px;color:var(--text-lo);background:rgba(255,255,255,.04);padding:2px 6px;border-radius:2px;margin-left:6px;">#${slot}</span>`;
+
+      let snaps = f.snapshots && f.snapshots.length
+        ? f.snapshots.map(s => `<div class="snap-thumb"><img src="/static/snapshots/${s.filename}" onerror="this.parentElement.innerHTML='<div class=snap-placeholder>◈</div>'" /></div>`).join('')
+        : `<div class="snap-thumb"><div class="snap-placeholder" style="color:var(--text-lo);font-size:18px;">◈</div></div>`;
+
+      let logRows = f.visit_log && f.visit_log.length
+        ? f.visit_log.slice(0,3).map(v => `<div class="mini-log-row"><span class="loc">${v.location}</span><span>${(v.timestamp||'').slice(0,16).replace('T',' ')}</span><span style="color:var(--accent)">${v.duration_sec}s</span></div>`).join('')
+        : `<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-lo);padding:4px 0;">No visits yet</div>`;
+
+      const html = `
+        <div class="subject-header">
+          <div>
+            <div style="display:flex;align-items:center;">
+              <div class="subject-name ${f.is_known ? '' : 'unknown-name'}">
+                ${f.is_known ? escHtml(f.name) : '⚑ UNKNOWN'}
+              </div>${primaryTag}
+            </div>
+            <div class="subject-id">${f.user_id}</div>
+          </div>
+          <span class="badge ${badgeCls}"><span class="badge-dot"></span>${badgeTxt}</span>
+        </div>
+        <div class="subject-body">
+          <div class="conf-bar-wrap">
+            <div class="conf-bar-label">
+              <span>Confidence</span>
+              <span class="conf-value" style="color:var(--accent)">${f.conf}%</span>
+            </div>
+            <div class="conf-bar-track">
+              <div class="conf-bar-fill" style="width:${f.conf}%;background:${f.conf>80?'var(--green)':f.conf>60?'var(--accent)':'var(--amber)'}"></div>
+            </div>
+          </div>
+          <div class="info-grid">
+            <div class="info-cell"><div class="k">First Seen</div><div class="v">${f.first_seen}</div></div>
+            <div class="info-cell"><div class="k">Last Seen</div><div class="v">${f.last_seen}</div></div>
+            <div class="info-cell"><div class="k">Visits</div><div class="v accent">${f.visit_count}</div></div>
+            <div class="info-cell"><div class="k">Emotion</div><div class="v emotion-val">${f.emotion||'—'}</div></div>
+          </div>
+          <div class="snap-strip">${snaps}</div>
+          <div class="mini-log"><div class="mini-log-title">Recent Visits</div>${logRows}</div>
+        </div>
+        <div class="panel-actions" style="gap:6px;">
+          ${f.is_known ? `<a href="/user/${f.user_id}" class="btn btn-accent" style="flex:1;justify-content:center;font-size:10px;">◉ Profile</a>` : ''}
+          <button class="btn" onclick="trackFace('${f.user_id}', ${slot})"
+                  style="flex:1;justify-content:center;font-size:10px;
+                         color:var(--green);border-color:rgba(0,255,135,.35);">
+            ◎ Track
+          </button>
+        </div>`;
+
+      if (card) {
+        card.className = `subject-card ${cls}`;
+        card.innerHTML = html;
+      } else {
+        card = document.createElement('div');
+        card.id        = `face-card-${slot}`;
+        card.className = `subject-card ${cls}`;
+        card.style.marginBottom = '10px';
+        card.innerHTML = html;
+        // Insert in slot order
+        let inserted = false;
+        const existing = container.querySelectorAll('[id^="face-card-"]');
+        for (const el of existing) {
+          const elSlot = parseInt(el.id.replace('face-card-',''));
+          if (slot < elSlot) { container.insertBefore(card, el); inserted = true; break; }
+        }
+        if (!inserted) container.appendChild(card);
+      }
+
+      _syncSlotRegisterPanel(slot, f);
+    });
+
+    // Servo card always visible
+    document.getElementById('servo-card').style.display = 'block';
+  }
+
+  // ── Per-slot register panel ────────────────────────────────────────────────
+
+  function _syncSlotRegisterPanel(slot, f) {
+    const panel = document.getElementById(`reg-panel-${slot}`);
+    if (!panel) return;
+    if (!f.is_known && !regState[slot].locked) {
+      // Update title to show which slot
+      const titleEl = panel.querySelector('.title');
+      if (titleEl) titleEl.textContent = `⚑ Unknown #${slot} — Register to DB`;
+      panel.style.display = 'block';
+    } else {
+      panel.style.display = 'none';
+      if (f.is_known && regState[slot].locked) {
+        regState[slot].locked = false;
+        _resetSlotPanel(slot);
+      }
+    }
+  }
+
+  function _resetSlotPanel(slot) {
+    ['reg-name-','reg-eid-','reg-dept-','reg-role-'].forEach(pre => {
+      const el = document.getElementById(pre + slot);
+      if (el) el.value = '';
+    });
+    const stat = document.getElementById(`reg-status-${slot}`);
+    const btn  = document.getElementById(`reg-btn-${slot}`);
+    if (stat) { stat.style.display = 'none'; stat.textContent = ''; }
+    if (btn)  { btn.disabled = false; btn.textContent = '+ Add to Database'; }
+  }
+
+  // ── Register unknown face for a given slot ─────────────────────────────────
+  async function registerFace(slot) {
+    const nameEl = document.getElementById(`reg-name-${slot}`);
+    const eidEl  = document.getElementById(`reg-eid-${slot}`);
+    const deptEl = document.getElementById(`reg-dept-${slot}`);
+    const roleEl = document.getElementById(`reg-role-${slot}`);
+    const btn    = document.getElementById(`reg-btn-${slot}`);
+    if (!nameEl) return;
+
+    const name = nameEl.value.trim();
+    if (!name) { _showSlotStatus(slot, false, 'Name is required.'); nameEl.focus(); return; }
+
+    // Auto-generate employee ID if not provided
+    const eid = (eidEl && eidEl.value.trim())
+      || ('EMP-' + Date.now().toString().slice(-6));
+
+    regState[slot].registering = true;
+    btn.disabled    = true;
+    btn.textContent = 'Registering…';
+    _showSlotStatus(slot, null, 'Capturing face from camera…');
+
+    const dept = (deptEl && deptEl.value.trim()) || 'General';
+    const role = (roleEl && roleEl.value.trim()) || 'Visitor';
+
+    try {
+      const r    = await fetch(`/api/register_unknown`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name, employee_id: eid, department: dept, role }),
+      });
+      const data = await r.json();
+      if (data.status === 'registered') {
+        _showSlotStatus(slot, true, `✓ Registered as "${name}" — ID: ${data.id}`);
+        btn.textContent = '✓ Registered';
+        showToast(`✓ Registered "${name}"`);
+        regState[slot].locked = true;
+        setTimeout(() => {
+          regState[slot].locked = false;
+          regState[slot].registering = false;
+          fetchFaceState();
+        }, 2500);
+      } else {
+        _showSlotStatus(slot, false, 'Error: ' + (data.error || 'unknown'));
+        btn.disabled = false; btn.textContent = '+ Add to Database';
+        regState[slot].registering = false;
+      }
+    } catch(e) {
+      _showSlotStatus(slot, false, 'Network error — try again.');
+      btn.disabled = false; btn.textContent = '+ Add to Database';
+      regState[slot].registering = false;
+    }
+  }
+
+  function _showSlotStatus(slot, ok, text) {
+    const el = document.getElementById(`reg-status-${slot}`);
+    if (!el) return;
+    el.style.display    = 'block';
+    el.style.background = ok===true?'rgba(0,255,135,.08)':ok===false?'rgba(255,68,68,.08)':'rgba(0,229,255,.06)';
+    el.style.border     = `1px solid ${ok===true?'rgba(0,255,135,.3)':ok===false?'rgba(255,68,68,.3)':'rgba(0,229,255,.2)'}`;
+    el.style.color      = ok===true?'var(--green)':ok===false?'var(--red)':'var(--accent)';
+    el.textContent      = text;
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Auto-start check ───────────────────────────────────────────────────────
+  (async () => {
+    const data = await (await fetch('/api/camera/status')).json();
+    if (data.running) {
+      document.getElementById('feed-img').src = '/video_feed?' + Date.now();
+      camRunning = true;
+      document.getElementById('cam-pill').textContent = 'CAM LIVE';
+      document.getElementById('cam-pill').style.color  = 'var(--green)';
+      startPolling();
+    }
+  })();
+
+  // ── Enrol Modal ────────────────────────────────────────────────────────────
+  function openModal()  { document.getElementById('enrol-modal').style.display = 'flex'; }
+  function closeModal() {
+    document.getElementById('enrol-modal').style.display = 'none';
+    document.getElementById('mod-msg').style.display     = 'none';
+  }
+
+  async function modalCapture() {
+    const name = document.getElementById('mod-name').value.trim();
+    const eid  = document.getElementById('mod-eid').value.trim();
+    const role = document.getElementById('mod-role').value.trim() || 'Employee';
+    const dept = document.getElementById('mod-dept').value.trim() || 'General';
+    if (!name || !eid) { showModMsg(false, 'Name and Employee ID are required.'); return; }
+    showModMsg(null, 'Triggering camera capture…');
+    const r = await fetch('/api/capture_enroll', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, employee_id: eid, role, department: dept }),
+    });
+    const d = await r.json();
+    showModMsg(d.success, d.message || (d.success ? '✓ Capturing — look at camera' : 'Failed'));
+    if (d.success) setTimeout(closeModal, 2500);
+  }
+
+  function showModMsg(ok, text) {
+    const el = document.getElementById('mod-msg');
+    el.style.display    = 'block';
+    el.style.background = ok===true?'rgba(0,255,135,.08)':ok===false?'rgba(255,68,68,.08)':'rgba(0,229,255,.06)';
+    el.style.border     = `1px solid ${ok===true?'rgba(0,255,135,.3)':ok===false?'rgba(255,68,68,.3)':'rgba(0,229,255,.2)'}`;
+    el.style.color      = ok===true?'var(--green)':ok===false?'var(--red)':'var(--accent)';
+    el.textContent = text;
+  }
+
+
+  // ── Servo tracking functions ──────────────────────────────────────────────
+
+  let servoEnabled = false;
+  let servoTarget  = null;
+  let servoPollInterval = null;
+
+  // Boot: load current servo config into UI
+  (async function initServo() {
+    try {
+      const d = await (await fetch('/api/servo/status')).json();
+      servoEnabled = d.enabled;
+      servoTarget  = d.target;
+      _updateServoUI(d);
+      if (d.pi_url) document.getElementById('servo-url-input').value = d.pi_url;
+      if (d.password) document.getElementById('servo-pass-input').value = d.password;
+    } catch(e) {}
+    // Poll servo status every 2s
+    servoPollInterval = setInterval(pollServo, 2000);
+  })();
+
+  async function pollServo() {
+    try {
+      const d = await (await fetch('/api/servo/status')).json();
+      servoEnabled = d.enabled;
+      servoTarget  = d.target;
+      _updateServoUI(d);
+    } catch(e) {}
+  }
+
+  function _updateServoUI(d) {
+    // Toggle knob
+    const knob   = document.getElementById('servo-toggle-knob');
+    const toggle = document.getElementById('servo-toggle');
+    const dot    = document.getElementById('servo-conn-dot');
+    if (d.enabled) {
+      toggle.style.background = 'rgba(0,255,135,.25)';
+      toggle.style.borderColor = 'var(--green)';
+      knob.style.left = '16px';
+      knob.style.background = 'var(--green)';
+    } else {
+      toggle.style.background = 'var(--border)';
+      toggle.style.borderColor = 'var(--border-hi)';
+      knob.style.left = '2px';
+      knob.style.background = 'var(--text-lo)';
+    }
+    // Connection dot
+    dot.style.background = d.connected ? 'var(--green)' : (d.enabled ? 'var(--amber)' : 'var(--text-lo)');
+
+    // Target & position
+    const tEl = document.getElementById('servo-target-text');
+    if (tEl) tEl.textContent = d.target || (d.enabled ? 'NONE' : 'DISABLED');
+
+    const pEl = document.getElementById('servo-pos-text');
+    if (pEl) pEl.textContent = `x:${d.last_cx} y:${d.last_cy}`;
+
+    // Track buttons — highlight if tracking a specific face
+    document.querySelectorAll('[id^="track-btn-"]').forEach(b => {
+      b.style.color = '';
+      b.style.borderColor = '';
+    });
+    const autoBtn = document.getElementById('btn-track-auto');
+    if (d.target === 'AUTO' && autoBtn) {
+      autoBtn.style.color       = 'var(--accent)';
+      autoBtn.style.borderColor = 'var(--accent)';
+    }
+  }
+
+  async function toggleServo() {
+    servoEnabled = !servoEnabled;
+    try {
+      await fetch('/api/servo/config', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ enabled: servoEnabled }),
+      });
+    } catch(e) {}
+    await pollServo();
+  }
+
+  async function trackFace(userId, slot) {
+    try {
+      await fetch(`/api/track/${userId}`, { method: 'POST' });
+      // Also enable servo if not already
+      if (!servoEnabled) {
+        await fetch('/api/servo/config', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ enabled: true }),
+        });
+      }
+      showToast(`◎ Tracking ${userId}`);
+    } catch(e) { showToast('Servo error'); }
+    await pollServo();
+  }
+
+  async function trackAuto() {
+    try {
+      await fetch('/api/track/auto', { method: 'POST' });
+      if (!servoEnabled) {
+        await fetch('/api/servo/config', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ enabled: true }),
+        });
+      }
+      showToast('◎ Auto-tracking primary face');
+    } catch(e) {}
+    await pollServo();
+  }
+
+  async function stopTracking() {
+    try {
+      await fetch('/api/track/stop', { method: 'POST' });
+      showToast('■ Servo stopped');
+    } catch(e) {}
+    await pollServo();
+  }
+
+  async function saveServoConfig() {
+    const url  = document.getElementById('servo-url-input').value.trim();
+    const pass = document.getElementById('servo-pass-input').value.trim();
+    const msg  = document.getElementById('servo-config-msg');
+    try {
+      const r = await fetch('/api/servo/config', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          pi_url:   url || undefined,
+          password: pass ? parseInt(pass) : undefined,
+        }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        msg.style.display = 'block';
+        msg.style.color   = 'var(--green)';
+        msg.style.background = 'rgba(0,255,135,.08)';
+        msg.style.border  = '1px solid rgba(0,255,135,.25)';
+        msg.textContent   = '✓ Saved';
+        setTimeout(() => { msg.style.display = 'none'; }, 2000);
+      }
+    } catch(e) {
+      msg.style.display = 'block';
+      msg.style.color   = 'var(--red)';
+      msg.textContent   = 'Save failed';
+    }
+    await pollServo();
+  }
+
+    document.getElementById('enrol-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+</script>
+{% endblock %}

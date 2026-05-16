@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — FaceTrack{% endblock %}
+
+{% block head %}
+<style>
+  .users-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 1.5rem;
+  }
+
+  .user-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    text-decoration: none;
+    display: block;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .user-card:hover {
+    border-color: var(--border-hi);
+    background: var(--bg-hover);
+  }
+
+  .user-card-img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    background: var(--bg-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .user-card-img .face-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0d1a26 0%, #0a1520 100%);
+    position: relative;
+  }
+
+  .user-card-img .face-placeholder svg {
+    width: 60px;
+    height: 60px;
+    opacity: 0.25;
+  }
+
+  /* Corner scan brackets on image */
+  .user-card-img::before,
+  .user-card-img::after {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    z-index: 2;
+  }
+
+  .user-card-img::before {
+    top: 8px; left: 8px;
+    border-top: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+    opacity: 0.7;
+  }
+
+  .user-card-img::after {
+    bottom: 8px; right: 8px;
+    border-bottom: 2px solid var(--accent);
+    border-right: 2px solid var(--accent);
+    opacity: 0.7;
+  }
+
+  .user-card-img .flagged-overlay {
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--red);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .user-card-img .snap-count {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(0,0,0,0.6);
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+
+  .user-card-body {
+    padding: 1rem 1.25rem;
+  }
+
+  .user-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .user-card-name {
+    font-family: var(--font-cond);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text-hi);
+    text-transform: uppercase;
+  }
+
+  .user-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-mid);
+  }
+
+  .user-card-meta .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .user-card-meta .key { color: var(--text-lo); }
+  .user-card-meta .val { color: var(--text-mid); }
+
+  .user-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Activity feed */
+  .activity-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .activity-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .activity-item:last-child { border-bottom: none; }
+
+  .activity-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+
+  .activity-dot.green { background: var(--green); }
+  .activity-dot.red   { background: var(--red); }
+  .activity-dot.amber { background: var(--amber); }
+
+  .activity-text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-mid);
+    line-height: 1.5;
+  }
+
+  .activity-text .hi { color: var(--text-hi); }
+
+  .activity-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-lo);
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+
+  .section-title {
+    font-family: var(--font-cond);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-hi);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="page-header">
+  <div>
+    <h1>Surveillance Dashboard</h1>
+    <div class="sub">REAL-TIME FACE TRACKING / MONITORING SYSTEM</div>
+  </div>
+  <a href="/users" class="btn btn-accent">◉ View All Subjects</a>
+</div>
+
+<!-- Stat Cards -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="val">{{ stats.total_tracked }}</div>
+    <div class="lbl">Total Tracked</div>
+  </div>
+  <div class="stat-card green">
+    <div class="val">{{ stats.active_today }}</div>
+    <div class="lbl">Active Today</div>
+  </div>
+  <div class="stat-card red">
+    <div class="val">{{ stats.flagged }}</div>
+    <div class="lbl">Flagged</div>
+  </div>
+  <div class="stat-card amber">
+    <div class="val">{{ stats.total_snapshots }}</div>
+    <div class="lbl">Total Snapshots</div>
+  </div>
+</div>
+
+<!-- Two Column Layout -->
+<div class="two-col">
+
+  <!-- User Cards Grid -->
+  <div>
+    <div class="section-title">Recent Subjects</div>
+    <div class="users-grid">
+      {% for user in users %}
+      <a class="user-card" href="/user/{{ user.id }}">
+        <div class="user-card-img">
+          {% if user.snapshots %}
+            <img
+              src="{{ url_for('static', filename='snapshots/' + user.snapshots[0].filename) }}"
+              alt="snapshot"
+              style="width:100%;height:100%;object-fit:cover;"
+              onerror="this.style.display='none'; this.parentElement.querySelector('.face-placeholder').style.display='flex';"
+            />
+          {% endif %}
+          <div class="face-placeholder" {% if user.snapshots %}style="display:none"{% endif %}>
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="32" cy="24" r="12" stroke="#00e5ff" stroke-width="1.5"/>
+              <path d="M12 56c0-11 9-20 20-20h0c11 0 20 9 20 20" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round"/>
+              <rect x="4" y="4" width="14" height="2" fill="#00e5ff"/>
+              <rect x="4" y="4" width="2" height="14" fill="#00e5ff"/>
+              <rect x="46" y="4" width="14" height="2" fill="#00e5ff"/>
+              <rect x="56" y="4" width="2" height="14" fill="#00e5ff"/>
+              <rect x="4" y="58" width="14" height="2" fill="#00e5ff"/>
+              <rect x="4" y="46" width="2" height="14" fill="#00e5ff"/>
+              <rect x="46" y="58" width="14" height="2" fill="#00e5ff"/>
+              <rect x="56" y="46" width="2" height="14" fill="#00e5ff"/>
+            </svg>
+          </div>
+          {% if user.status == 'flagged' %}
+          <div class="flagged-overlay"></div>
+          {% endif %}
+          <div class="snap-count">{{ user.snapshots|length }} SNAPS</div>
+        </div>
+
+        <div class="user-card-body">
+          <div class="user-card-header">
+            <div>
+              <div class="user-card-name">{{ user.name }}</div>
+              <div class="id-chip" style="margin-top:4px; display:inline-block;">{{ user.id }}</div>
+            </div>
+            {% if user.status == 'active' %}
+              <span class="badge badge-green"><span class="badge-dot"></span>Active</span>
+            {% elif user.status == 'flagged' %}
+              <span class="badge badge-red"><span class="badge-dot"></span>Flagged</span>
+            {% else %}
+              <span class="badge badge-amber"><span class="badge-dot"></span>{{ user.status }}</span>
+            {% endif %}
+          </div>
+          <div class="user-card-meta">
+            <div class="row">
+              <span class="key">FIRST SEEN</span>
+              <span class="val">{{ user.first_seen[:10] }}</span>
+            </div>
+            <div class="row">
+              <span class="key">LAST SEEN</span>
+              <span class="val">{{ user.last_seen[:10] }}</span>
+            </div>
+            <div class="row">
+              <span class="key">VISITS</span>
+              <span class="val">{{ user.visit_count }}</span>
+            </div>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Activity Feed -->
+  <div>
+    <div class="section-title">Activity Log</div>
+    <div class="card" style="padding: 0 1.25rem;">
+      <div class="activity-feed">
+        {% for user in users %}
+          {% for log in user.visit_log[:2] %}
+          <div class="activity-item">
+            <div class="activity-dot {% if user.status == 'flagged' %}red{% elif loop.first and loop.index0 == 0 %}green{% else %}amber{% endif %}"></div>
+            <div>
+              <div class="activity-text">
+                <span class="hi">{{ user.name }}</span>
+                detected at <span class="hi">{{ log.location }}</span>
+                — {{ log.duration_sec }}s duration
+              </div>
+              <div class="activity-time">{{ log.timestamp[:16].replace('T', ' ') }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- System status card -->
+    <div style="margin-top: 1.25rem;">
+      <div class="section-title">System Status</div>
+      <div class="card">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          {% set statuses = [
+            ('Camera Feed A', 'green', 'ONLINE'),
+            ('Camera Feed B', 'green', 'ONLINE'),
+            ('Side Entrance Cam', 'amber', 'DEGRADED'),
+            ('Face Detection Model', 'green', 'RUNNING'),
+            ('Database Sync', 'green', 'SYNCED'),
+          ] %}
+          {% for name, color, label in statuses %}
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-mid);">{{ name }}</span>
+            <span class="badge badge-{{ color }}"><span class="badge-dot"></span>{{ label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

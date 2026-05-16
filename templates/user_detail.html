@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.name }} — {{ user.id }} — FaceTrack{% endblock %}
+
+{% block head %}
+<style>
+  .detail-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  /* Profile card */
+  .profile-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: sticky;
+    top: 80px;
+  }
+
+  .profile-avatar {
+    width: 100%;
+    height: 240px;
+    background: var(--bg-deep);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .profile-avatar .placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a1520;
+  }
+
+  .profile-avatar .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scan 3s ease-in-out infinite;
+    opacity: 0.5;
+  }
+
+  @keyframes scan {
+    0%   { top: 0%; opacity: 0; }
+    10%  { opacity: 0.5; }
+    90%  { opacity: 0.5; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  /* Brackets on profile image */
+  .profile-avatar::before, .profile-avatar::after {
+    content: '';
+    position: absolute;
+    width: 24px; height: 24px;
+    z-index: 2;
+  }
+  .profile-avatar::before {
+    top: 12px; left: 12px;
+    border-top: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+  }
+  .profile-avatar::after {
+    bottom: 12px; right: 12px;
+    border-bottom: 2px solid var(--accent);
+    border-right: 2px solid var(--accent);
+  }
+
+  .profile-body {
+    padding: 1.25rem;
+  }
+
+  .profile-name {
+    font-family: var(--font-cond);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-hi);
+    margin-bottom: 4px;
+  }
+
+  .profile-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .profile-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .profile-row .key {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-lo);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .profile-row .val {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-mid);
+  }
+
+  /* Snapshots gallery */
+  .snapshots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+
+  .snapshot-item {
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .snapshot-item:hover { border-color: var(--accent-dim); }
+
+  .snapshot-item img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .snapshot-item .snap-placeholder {
+    width: 100%;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0a1520;
+  }
+
+  .snapshot-meta {
+    padding: 6px 8px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-lo);
+  }
+
+  /* Visit log table */
+  .visit-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .visit-table th {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--text-lo);
+    text-transform: uppercase;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-deep);
+  }
+
+  .visit-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-mid);
+    vertical-align: middle;
+  }
+
+  .visit-table tr:hover td { background: var(--bg-hover); }
+
+  .section-block {
+    margin-bottom: 1.75rem;
+  }
+
+  .section-title {
+    font-family: var(--font-cond);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-hi);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .duration-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .duration-bar .bar {
+    height: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    opacity: 0.6;
+    min-width: 4px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb + Header -->
+<div class="page-header">
+  <div>
+    <h1>
+      <a href="/" style="color:var(--text-lo); text-decoration:none; font-size:14px; font-weight:400;">Dashboard</a>
+      <span style="color:var(--text-lo); margin: 0 8px;">/</span>
+      {{ user.name }}
+    </h1>
+    <div class="sub">{{ user.id }} — SUBJECT PROFILE</div>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <a href="/" class="btn">← Back</a>
+    <button class="btn" id="track-btn" onclick="toggleTracking()" style="color:var(--accent); border-color:rgba(0,229,255,0.4);">
+      ◎ Track with Servo
+    </button>
+    {% if user.status == 'active' %}
+      <form method="POST" action="/user/{{ user.id }}/flag" style="margin:0;">
+        <button type="submit" class="btn" style="color:var(--red); border-color:rgba(255,68,68,0.4);">⚑ Flag Subject</button>
+      </form>
+    {% else %}
+      <form method="POST" action="/user/{{ user.id }}/clear" style="margin:0;">
+        <button type="submit" class="btn" style="color:var(--green); border-color:rgba(0,255,135,0.4);">✓ Clear Flag</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="detail-layout">
+
+  <!-- Left: Profile Card -->
+  <div class="profile-card">
+    <div class="profile-avatar">
+      {% if user.snapshots %}
+        <img
+          src="{{ url_for('static', filename='snapshots/' + user.snapshots[0].filename) }}"
+          alt="Latest snapshot"
+          onerror="this.style.display='none'"
+        />
+      {% endif %}
+      <div class="placeholder">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="24" r="12" stroke="#00e5ff" stroke-width="1.5"/>
+          <path d="M12 56c0-11 9-20 20-20h0c11 0 20 9 20 20" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round"/>
+          <rect x="4" y="4" width="14" height="2" fill="#00e5ff" opacity="0.4"/>
+          <rect x="4" y="4" width="2" height="14" fill="#00e5ff" opacity="0.4"/>
+          <rect x="46" y="4" width="14" height="2" fill="#00e5ff" opacity="0.4"/>
+          <rect x="56" y="4" width="2" height="14" fill="#00e5ff" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="scan-line"></div>
+    </div>
+    <div class="profile-body">
+      <div class="profile-name">{{ user.name }}</div>
+      <div class="id-chip">{{ user.id }}</div>
+      <div style="margin-top: 8px;">
+        {% if user.status == 'active' %}
+          <span class="badge badge-green"><span class="badge-dot"></span>Active</span>
+        {% elif user.status == 'flagged' %}
+          <span class="badge badge-red"><span class="badge-dot"></span>⚑ Flagged</span>
+        {% else %}
+          <span class="badge badge-amber"><span class="badge-dot"></span>{{ user.status }}</span>
+        {% endif %}
+      </div>
+
+      <div class="profile-rows">
+        <div class="profile-row">
+          <span class="key">First Seen</span>
+          <span class="val">{{ user.first_seen[:10] }}</span>
+        </div>
+        <div class="profile-row">
+          <span class="key">Last Seen</span>
+          <span class="val">{{ user.last_seen[:10] }}</span>
+        </div>
+        <div class="profile-row">
+          <span class="key">Total Visits</span>
+          <span class="val" style="color:var(--accent);">{{ user.visit_count }}</span>
+        </div>
+        <div class="profile-row">
+          <span class="key">Snapshots</span>
+          <span class="val">{{ user.snapshots|length }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Details -->
+  <div>
+
+    <!-- Snapshots section -->
+    <!-- AI Behavioural Summary -->
+    <div class="section-block">
+      <div class="section-title">AI Profile Summary</div>
+      <div class="card" style="padding:1rem 1.25rem;" id="ai-summary-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-lo);
+                      letter-spacing:.1em;text-transform:uppercase;">
+            AI-Generated Behavioural Profile
+          </div>
+          <button class="btn" id="ai-summary-btn" onclick="loadAISummary()" style="padding:4px 10px;font-size:10px;">
+            ◈ Generate
+          </button>
+        </div>
+        <div id="ai-summary-text" style="font-size:13px;color:var(--text-mid);
+             line-height:1.6;font-style:italic;min-height:48px;">
+          Click Generate to create an AI profile for this person.
+        </div>
+      </div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-title">Captured Snapshots</div>
+      <div class="snapshots-grid">
+        {% for snap in user.snapshots %}
+        <div class="snapshot-item">
+          <img
+            src="{{ url_for('static', filename='snapshots/' + snap.filename) }}"
+            alt="snapshot"
+            onerror="this.style.display='none'; this.parentElement.querySelector('.snap-placeholder').style.display='flex';"
+          />
+          <div class="snap-placeholder" style="display:none;">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <rect x="4" y="8" width="24" height="18" rx="2" stroke="#1e2d3d" stroke-width="1.5"/>
+              <circle cx="16" cy="17" r="4" stroke="#1e2d3d" stroke-width="1.5"/>
+              <path d="M11 8l2-3h6l2 3" stroke="#1e2d3d" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="snapshot-meta">{{ snap.timestamp[11:16] }} · {{ snap.timestamp[:10] }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Visit log section -->
+    <div class="section-block">
+      <div class="section-title">Visit Log</div>
+      <div class="card" style="padding: 0;">
+        <table class="visit-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Timestamp</th>
+              <th>Location</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in user.visit_log %}
+            <tr>
+              <td style="color: var(--text-lo);">{{ loop.index }}</td>
+              <td>{{ log.timestamp[:10] }} <span style="color:var(--text-lo);">{{ log.timestamp[11:16] }}</span></td>
+              <td style="color: var(--text-hi);">{{ log.location }}</td>
+              <td>
+                <div class="duration-bar">
+                  <div class="bar" style="width: {{ [log.duration_sec * 0.8, 80] | min }}px;"></div>
+                  <span>{{ log.duration_sec }}s</span>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const USER_ID = "{{ user.id }}";
+  let isTracking = false;
+
+  async function checkStatus() {
+    const r    = await fetch('/api/track/status');
+    const data = await r.json();
+    isTracking = (data.tracking === USER_ID);
+    updateBtn();
+  }
+
+  function updateBtn() {
+    const btn = document.getElementById('track-btn');
+    if (isTracking) {
+      btn.textContent       = '■ Stop Tracking';
+      btn.style.color       = 'var(--red)';
+      btn.style.borderColor = 'rgba(255,68,68,0.4)';
+    } else {
+      btn.textContent       = '◎ Track with Servo';
+      btn.style.color       = 'var(--accent)';
+      btn.style.borderColor = 'rgba(0,229,255,0.4)';
+    }
+  }
+
+  async function toggleTracking() {
+    if (isTracking) {
+      await fetch('/api/track/stop', { method: 'POST' });
+      isTracking = false;
+    } else {
+      await fetch(`/api/track/${USER_ID}`, { method: 'POST' });
+      isTracking = true;
+    }
+    updateBtn();
+  }
+
+  checkStatus();
+  setInterval(checkStatus, 3000);
+  
+  async function loadAISummary() {
+    const btn = document.getElementById('ai-summary-btn');
+    const txt = document.getElementById('ai-summary-text');
+    btn.disabled = true; btn.textContent = 'Generating…';
+    txt.style.fontStyle = 'italic';
+    txt.textContent = 'Analysing visit history and emotional patterns…';
+    try {
+      const r    = await fetch(`/api/ai/person/${USER_ID}/summary`);
+      const data = await r.json();
+      txt.textContent   = data.summary || 'No summary available.';
+      txt.style.fontStyle = 'normal';
+      txt.style.color    = 'var(--text-hi)';
+    } catch(e) {
+      txt.textContent = 'Could not load AI summary — check server logs.';
+    } finally {
+      btn.disabled = false; btn.textContent = '↺ Regenerate';
+    }
+  }
+</script>
+{% endblock %}
